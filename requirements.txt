@@ -1,0 +1,8 @@
+fastapi==0.142.1
+uvicorn==0.54.0
+httpx[socks]==0.28.1
+beautifulsoup4==4.15.0
+feedparser==6.0.14
+scikit-learn==1.9.1
+python-dotenv==1.2.3
+tzdata>=2025.2

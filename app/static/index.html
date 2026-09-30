@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Find research papers and your next conference opportunity with Eureka.">
+  <title>Eureka — Research, connected.</title>
+  <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/style.css">
+  <script defer src="/static/app.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <aside class="sidebar">
+    <a class="brand" href="/" aria-label="Eureka home"><img src="/static/icon.svg" alt="" width="38" height="38">eureka<span>®</span></a>
+    <p class="side-label">YOUR RESEARCH WORKSPACE</p>
+    <nav aria-label="Main navigation">
+      <button class="nav active" data-view="paper"><span class="nav-icon">⌕</span>Discover papers</button>
+      <button class="nav" data-view="conference"><span class="nav-icon">◷</span>Conferences</button>
+      <button class="nav" data-view="saved"><span class="nav-icon">▱</span>Saved collection <span id="saved-count" class="count">0</span></button>
+      <button class="nav" data-view="dashboard"><span class="nav-icon">▥</span>Overview</button>
+    </nav>
+    <div class="side-note"><span class="tiny-star">✳</span><h3>Connect the dots.</h3><p>From a promising paper to your next submission. Keep your research moving.</p></div>
+    <div class="side-bottom"><span class="status-dot"></span>Local workspace<p>Your collection stays on this device.</p><a href="/docs" target="_blank" rel="noopener">Explore the REST API ↗</a></div>
+  </aside>
+  <div class="shell">
+    <header class="topbar"><div><span class="breadcrumb">WORKSPACE</span><span class="slash">/</span><span id="crumb">Discover papers</span></div><div class="top-actions"><label for="mode">Data</label><select id="mode"><option value="live">Live sources</option><option value="demo">Demo examples</option></select><span class="avatar" aria-label="Local workspace">E</span></div></header>
+    <main id="main">
+      <div id="demo-banner" class="banner" hidden><strong>DEMO MODE</strong> Synthetic examples only. These are not real papers or submission opportunities.</div>
+      <section class="hero">
+        <div><p class="eyebrow"><span></span> RESEARCH, CONNECTED</p><h1 id="hero-title">Your next idea<br>starts here<span>.</span></h1><p id="hero-description">Explore the literature. Find your community.<br>Bring papers and possibilities into one place.</p></div>
+        <div class="hero-art" aria-hidden="true"><div class="orbit orbit-one"></div><div class="orbit orbit-two"></div><div class="orbit orbit-three"></div><span class="art-star">✳</span><span class="art-dot one"></span><span class="art-dot two"></span><span class="art-dot three"></span><span class="art-label">A WORLD OF IDEAS</span></div>
+      </section>
+      <section class="search-panel" id="search-panel" aria-label="Search research">
+        <form id="search-form"><span class="search-symbol" aria-hidden="true">⌕</span><label class="sr-only" for="query">Research topic, title, or author</label><input id="query" maxlength="200" placeholder="What are you curious about?" autocomplete="off"><button id="search-button" class="primary" type="submit">Search sources <span aria-hidden="true">↗</span></button></form>
+        <div class="suggestions"><span>TRY A TOPIC</span><button data-query="machine learning">Machine learning</button><button data-query="natural language processing">Language models</button><button data-query="computer vision">Computer vision</button><button data-query="robotics">Robotics</button></div>
+      </section>
+      <div id="feedback" role="status" aria-live="polite" hidden></div>
+      <section class="source-strip" aria-label="Data connections"><span class="strip-label">CONNECTED SOURCES</span><span><i class="source-dot blue"></i>Crossref <small>REST API</small></span><span><i class="source-dot orange"></i>arXiv <small>Atom API</small></span><span><i class="source-dot green"></i>ML Deadlines <small>Web scraping</small></span><button id="source-details">Source status ↗</button></section>
+      <section id="results-section">
+        <div class="results-heading"><div><p class="eyebrow small" id="section-label">THE LITERATURE</p><h2 id="section-title">Discover papers <span id="result-count">0</span></h2></div><div class="heading-actions"><button id="clear-search" class="text-button">Browse collected</button><button id="export" class="secondary">↓ Export CSV</button></div></div>
+        <div class="filters"><label>Sort by<select id="sort"><option value="relevance">Relevance</option><option value="newest">Newest year</option><option value="deadline">Nearest deadline</option></select></label><label id="source-filter">Source<select id="source"><option value="">All sources</option><option value="crossref">Crossref</option><option value="arxiv">arXiv</option></select></label><label id="year-filter">From year<input id="year" type="number" min="1900" max="2100" placeholder="Any year"></label><label id="location-filter" hidden>Location<input id="location" placeholder="Country or city" maxlength="120"></label><label id="deadline-filter" hidden>Deadline<select id="deadline"><option value="all">All deadlines</option><option value="open">Future / due today</option><option value="expired">Expired</option><option value="unknown">Needs verification</option></select></label><button id="reset-filters" class="text-button">Reset filters</button></div>
+        <p class="result-note" id="result-note">Search across sources, or try the demo to explore Eureka.</p>
+        <div id="results" class="results-grid" aria-live="polite"></div>
+        <div id="pagination" class="pagination" hidden><button id="previous" class="secondary">← Previous</button><span id="page-label"></span><button id="next" class="secondary">Next →</button></div>
+      </section>
+      <section id="dashboard-section" hidden><div class="results-heading"><div><p class="eyebrow small">THE BIG PICTURE</p><h2>Your research, at a glance</h2></div></div><div id="stats" class="stats-grid"></div><div class="dashboard-grid"><div><h3>Approaching submission deadlines</h3><p class="muted">Collected listings. Confirm track requirements and earlier abstract deadlines on the official site.</p><div id="upcoming"></div></div><div><h3>Source health</h3><div id="source-health"></div><p class="muted">Identical paper searches and the conference index are cached for 24 hours.</p></div></div></section>
+      <footer><span><strong>eureka</strong> &nbsp; A little curiosity goes a long way.</span><span>Metadata discovery · Always check the original source</span></footer>
+    </main>
+  </div>
+  <dialog id="details"><button id="close-details" class="dialog-close" aria-label="Close details">×</button><div id="detail-content"></div></dialog>
+  <div id="toast" role="status" hidden></div>
+</body>
+</html>

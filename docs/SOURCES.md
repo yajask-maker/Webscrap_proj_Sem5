@@ -1,64 +1,47 @@
-# Source integration notes
+# Source register
 
-Documentation reviewed on 30 September 2026. Reading documentation verifies an integration design, not live endpoint availability. Run and record smoke checks during implementation. Recheck provider policies before enabling collection.
+Reviewed and smoke-tested on 30 September 2026. Provider availability and policies may change; failures are displayed without removing existing data.
 
-## Paper sources
-
-| Source | Proposed use | Interface | Validation status |
+| Source | Use | Endpoint | Access and bounds |
 | --- | --- | --- | --- |
-| Crossref | Published-work metadata, DOI lookup, keyword discovery | JSON REST API at `https://api.crossref.org/works` | Official documentation reviewed; live adapter not implemented |
-| arXiv | Preprints, abstracts, authors, categories, identifiers | Atom/XML HTTP API at `https://export.arxiv.org/api/query` | Official documentation reviewed; live adapter not implemented |
+| Crossref | Bibliographic paper search and DOI metadata | `https://api.crossref.org/works` | Public API; optional contact email; one serial request per second; 30 results per topic |
+| arXiv | Preprints, abstracts, authors, categories | `https://export.arxiv.org/api/query` | Atom API; one request per 3.1 seconds; one connection; 30 results per topic |
+| ML Deadlines | Conference opportunities and primary submission deadlines | `https://mldeadlines.com/` | HTML scraping; fixed index only; runtime robots check; 24-hour cache; maximum 500 cards |
 
-### Crossref
+## Crossref
 
-The public REST API does not require signup. Use a configured contact email through the documented polite-pool mechanism. Read rate and concurrency response headers, honor throttling, and keep limits configurable rather than assuming an old fixed quota. Metadata completeness varies; abstracts may be absent and some have reuse restrictions. Retrieve discovery metadata and source links rather than treating the API as unrestricted full-text access.
-
-References:
+The client sends a bibliographic query and optional `mailto` contact, parses DOI, title, authors, abstract, venue, subjects, and year, and tolerates absent optional metadata. Its deliberately conservative serial request cadence is below the public limit documented when reviewed. HTTP throttling is surfaced and retried within bounded limits. Some supplied abstracts have reuse restrictions; exports intentionally contain bibliographic metadata rather than abstract text.
 
 - [REST API overview](https://www.crossref.org/documentation/retrieve-metadata/rest-api/)
-- [Access, authentication, and request limits](https://www.crossref.org/documentation/retrieve-metadata/rest-api/access-and-authentication/)
-- [REST API filters](https://www.crossref.org/documentation/retrieve-metadata/rest-api/rest-api-filters/)
+- [Access and request limits](https://www.crossref.org/documentation/retrieve-metadata/rest-api/access-and-authentication/)
 
-### arXiv
+## arXiv
 
-The API supports query parameters and pagination and returns Atom XML, not JSON. Parse identifiers, authors, titles, dates, categories, abstract text, and links using an Atom parser. The terms specify no more than one legacy API request every three seconds, with one connection at a time across the deployment. Cache repeated queries. Preserve preprint identity and version information; do not label every preprint as peer reviewed. Link users to arXiv rather than hosting paper PDFs.
+The client parses Atom, preserves source version URLs, normalizes base identifiers, and honors the legacy API's three-second interval and single-connection requirement with a 3.1-second limiter. Descriptive metadata supports discovery; full paper PDFs are not downloaded or hosted. A preprint is not automatically labeled peer reviewed.
 
-References:
+- [API manual](https://info.arxiv.org/help/api/user-manual.html)
+- [Terms of use](https://info.arxiv.org/help/api/tou.html)
 
-- [API user manual](https://info.arxiv.org/help/api/user-manual.html)
-- [API terms of use](https://info.arxiv.org/help/api/tou.html)
+## ML Deadlines
 
-## Conference sources
+The homepage and [robots policy](https://mldeadlines.com/robots.txt) were retrieved successfully during implementation. The policy explicitly welcomes crawlers for public conference deadline data and allows the index path. The client rechecks that policy before an uncached scrape; an unreadable or disallowing policy stops acquisition.
 
-| Candidate | Intended use | Current decision |
-| --- | --- | --- |
-| [WikiCFP](https://www.wikicfp.com/) | Discover conference listings and submission dates | Candidate only; direct homepage/terms retrieval did not succeed during planning, so automated-use permission and parser feasibility remain unverified |
-| Selected official conference CFP pages | Extract and verify event-specific topics, tracks, and deadlines | Exact URLs to be selected and reviewed in week 1 |
+Source scope: only `https://mldeadlines.com/robots.txt` and `https://mldeadlines.com/`. Redirects are not automatically followed. Discovery and official event links are stored for the user to open; they are not additional crawl targets. HTTP requests identify the application as `EurekaResearch/1.0`.
 
-Do not commit to a candidate merely because its listings appear in search results. Inspect the exact pages, site terms, robots directives, and available feeds/APIs. Prefer a supported feed or API when available, while retaining at least one permitted HTML source for the project's scraping objective. Do not bypass login, CAPTCHA, or access restrictions.
+Extraction uses `.ConfItem` cards, source IDs, `.conf-title`, official-link anchors, `.conf-place`, `.conf-date`, `.conf-sub`, notes, and the page's ISO `data-deadline` attributes. It does not execute scripts. Missing cards cause an explicit parser error rather than a false empty success. Notes that explicitly describe assumed/estimated/tentative timing prevent an exact countdown.
 
-Maintain the following source register for each enabled HTML adapter:
+Only factual discovery metadata and short source-provided notes are stored locally. Source links and attribution remain in the UI and exports. The project does not redistribute the full scraped HTML or copy the source site's interface/assets. Checked robots permission is not a claim of ownership over source content. The test HTML is authored synthetic content.
 
-| Field | Required value |
-| --- | --- |
-| Identity | Source name, owner/organizer, base URL, adapter name |
-| Scope | Exact allowed domains, paths, redirects, and pagination bounds |
-| Access review | Terms URL, robots URL, reviewed date, relevant evidence, decision |
-| Request policy | Identification header, minimum delay, concurrency, cache duration |
-| Extraction | Required/optional fields, selectors, detail-page links, date formats |
-| Storage | Permitted metadata, attribution, retention, and redistribution constraints |
-| Verification | Fixture location, sample URLs, last successful smoke check, known gaps |
+The source is an aggregator, not an official organizer. The displayed time may be inferred or changed upstream. Every conference detail instructs the user to verify the official CFP, including earlier abstract/registration requirements. Different rounds/editions remain separate source records. Unlisted tracks and events remain outside coverage.
 
-A missing or unclear permission decision means the adapter stays disabled until resolved. A robots allowance alone does not establish reuse rights.
+## Candidates not enabled
 
-## Smoke-check checklist
+WikiCFP was not enabled because automated-use policy and parser feasibility were not established. The original `aideadlin.es` was reachable but its observed index was older than the selected source. Neither is silently used as a fallback.
 
-- [ ] Fetch one small paper result batch from each API using documented parameters.
-- [ ] Confirm actual content type, useful fields, pagination, errors, and limits.
-- [ ] Approve at least one conference HTML source and its exact URL patterns.
-- [ ] Extract one listing and detail page; compare fields manually with the original.
-- [ ] Verify uncertain, missing, changed, and track-specific deadlines.
-- [ ] Confirm source attribution and storage rules before retaining fixtures or records.
-- [ ] Record outcomes and dates; retain failures as unresolved work rather than claiming support.
+## Storage and source checks
 
-Optional future providers should receive the same review. API keys, access tiers, pricing, and quotas may change; no additional provider is assumed available in this MVP.
+- Real acquired data stays in the local database, excluded from Git.
+- Test/demo records are synthetic and never presented as live results.
+- API keys are unnecessary for the selected providers.
+- Identical source metadata does not multiply observation rows.
+- Recheck terms and source behavior before adding broader collection or redistribution.
