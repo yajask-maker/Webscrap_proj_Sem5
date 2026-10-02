@@ -9,12 +9,28 @@ Observed locally on a fresh Python 3.12.14 environment:
 - Installation from `requirements-dev.txt` succeeded; `pip check` found no broken requirements.
 - **50 Python tests passed**, including 20 new regression cases.
 - The jsdom interface journey passed against the actual FastAPI API.
-- JavaScript syntax and Git whitespace checks passed.
+- JavaScript syntax, Python compilation, and Git whitespace checks passed.
+- The actual `run.py` server was launched from a different working directory; health, static assets, API documentation, demo initialization, and dashboard requests passed over HTTP.
+- A real Chromium 153 journey passed: desktop and 390px mobile navigation, bookmarks, saved notes after reload, Escape to close details, actual CSV download with Unicode notes, deadline filtering, partial-source warnings, and recovery after removing the last saved record on page two. No browser errors or horizontal mobile overflow were observed. Desktop/mobile screenshots were visually inspected.
+- The expanded DOM journey also covers delayed mode initialization and disabled browser storage. Successful-source results appear while the remaining providers are still being fetched.
 - Live adapter query `natural language processing`: Crossref returned **30** papers and ML Deadlines returned **307** listings. **arXiv timed out after three attempts**; no claim of successful live arXiv retrieval is made for this audit.
 - Regression coverage verifies partial failures preserve records, transient failures recover, retries are throttled and bounded, failed refreshes remain retryable, streamed responses stop at the size limit, and compressed content is decoded correctly.
 - Other fixes cover omitted-note preservation, notes in CSV exports, source health history, concurrent identifier merging, null optional metadata, refresh lock cleanup, stable database paths, invalid origin handling, pagination recovery, and mode-switch races.
 
-Windows/Linux Python 3.11/3.12 CI and the Chromium journey are being verified on the audit branch. The local environment's browser download returned an invalid archive, so it could not run Chromium locally. CI results will be recorded here once complete.
+[GitHub Actions audit run 36968745776](https://github.com/yajask-maker/Webscrap_proj_Sem5/actions/runs/36968745776) **passed all four jobs** for application commit `dd7f7c01a2c0d01ad40e7889e5cbea4252ce40d3`:
+
+| Platform | Python | Python suite and dependency check | DOM journey | Real Chromium journey |
+| --- | --- | --- | --- | --- |
+| Ubuntu | 3.11 | Passed | Passed | Not configured for this matrix row |
+| Ubuntu | 3.12 | Passed | Passed | Passed |
+| Windows | 3.11 | Passed | Passed | Not configured for this matrix row |
+| Windows | 3.12 | Passed | Passed | Passed |
+
+The uploaded application tree was verified to match the locally tested files exactly. The subsequent documentation commit only records these results.
+
+The standard local Playwright browser download returned an invalid archive; local verification used a Chromium binary from the `@sparticuz/chromium` package instead. This browser package was only a temporary audit tool, not a project dependency. CI successfully installed and ran its standard Playwright Chromium browser on both Windows and Linux.
+
+Remaining limitation: live arXiv retrieval was unavailable during this audit. The timeout handling and recovery paths passed deterministic tests; a successful live arXiv response cannot be promised. Crossref and conference discovery remained available. These checks do not establish uninterrupted provider service or the factual accuracy of every source record.
 
 The historical results below describe the original build separately.
 
@@ -58,7 +74,7 @@ The interface JavaScript passed `node --check`. A jsdom harness connected the ac
 
 Run these checks with `npm ci` and `npm run test:ui` after installing Python test dependencies. Node.js is used only for development verification; it is not required to run Eureka.
 
-## Visual verification limitation
+## Original build: visual verification limitation (superseded by the audit above)
 
 A full Chromium smoke run was attempted, but this execution environment blocked Chromium's process socket creation (`Operation not permitted`). Therefore desktop/mobile screenshots, actual browser download behavior, keyboard focus behavior, and rendered responsive layout were **not visually verified here**. jsdom checks interaction logic, not browser layout.
 
