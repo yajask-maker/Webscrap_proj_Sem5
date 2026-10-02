@@ -40,7 +40,7 @@ Response fields: `items`, `total`, `page`, `page_size`, `source_status`, `mode`.
 
 `open` includes future exact deadlines, future date-only deadlines, and date-only deadlines today. It is a time-based filter, not a guarantee of submission eligibility. Exact instants are stored in UTC. Date-only comparisons use the server's UTC calendar date and remain visibly uncertain. Browser-local time is shown only for exact instants.
 
-`/export` accepts the same substantive filters but no pagination parameters. `kind` defaults to `all` for export. It includes a UTF-8 BOM and neutralizes spreadsheet formula-like cells. `/dashboard` accepts `mode` only.
+`/export` accepts the same substantive filters but no pagination parameters. `kind` defaults to `all` for export. It includes a UTF-8 BOM, the `bookmark_note` column, and neutralizes spreadsheet formula-like cells. `/dashboard` accepts `mode` only.
 
 ## Refresh
 
@@ -66,7 +66,7 @@ Only one job runs at a time; concurrent refresh requests return 409. A restart m
 }
 ```
 
-Saving is idempotent and updates the note. Notes are limited to 1,000 characters. Records must already exist. Both live and demo bookmarks persist, with mode-based separation in search.
+Saving is idempotent. An omitted or null note preserves an existing note; an explicitly supplied note updates it, and an empty string clears it. Notes are limited to 1,000 characters. Records must already exist. Both live and demo bookmarks persist, with mode-based separation in search.
 
 ## Error behavior
 

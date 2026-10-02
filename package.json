@@ -1,6 +1,12 @@
 {
   "name": "eureka-ui-verification",
   "private": true,
-  "scripts": {"test:ui": "node tests/ui_smoke.cjs"},
-  "devDependencies": {"jsdom": "26.1.0"}
+  "scripts": {
+    "test:ui": "node tests/ui_smoke.cjs",
+    "test:browser": "node tests/browser_smoke.cjs"
+  },
+  "devDependencies": {
+    "jsdom": "26.1.0",
+    "playwright": "1.62.1"
+  }
 }

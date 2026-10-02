@@ -1,5 +1,23 @@
 # Verification record
 
+## Implementation and usage audit — 2 October 2026
+
+Reviewed all 33 original tracked files, including application code, assets, dependency files, tests, CI, fixtures, and documentation. Added targeted regression tests and a real Chromium journey.
+
+Observed locally on a fresh Python 3.12.14 environment:
+
+- Installation from `requirements-dev.txt` succeeded; `pip check` found no broken requirements.
+- **50 Python tests passed**, including 20 new regression cases.
+- The jsdom interface journey passed against the actual FastAPI API.
+- JavaScript syntax and Git whitespace checks passed.
+- Live adapter query `natural language processing`: Crossref returned **30** papers and ML Deadlines returned **307** listings. **arXiv timed out after three attempts**; no claim of successful live arXiv retrieval is made for this audit.
+- Regression coverage verifies partial failures preserve records, transient failures recover, retries are throttled and bounded, failed refreshes remain retryable, streamed responses stop at the size limit, and compressed content is decoded correctly.
+- Other fixes cover omitted-note preservation, notes in CSV exports, source health history, concurrent identifier merging, null optional metadata, refresh lock cleanup, stable database paths, invalid origin handling, pagination recovery, and mode-switch races.
+
+Windows/Linux Python 3.11/3.12 CI and the Chromium journey are being verified on the audit branch. The local environment's browser download returned an invalid archive, so it could not run Chromium locally. CI results will be recorded here once complete.
+
+The historical results below describe the original build separately.
+
 Implementation verification on 30 September 2026. Results below describe observed checks, not guarantees about future provider availability.
 
 ## Automated Python tests

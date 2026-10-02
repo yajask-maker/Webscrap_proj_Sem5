@@ -1,4 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor
+from copy import deepcopy
 from datetime import datetime, timezone
 import threading
 import uuid
@@ -23,7 +24,7 @@ class RefreshService:
                "sources": sources, "results": [], "started_at": now_iso()}
         try:
             self.db.save_job(job)
-            self.pool.submit(self.run, job)
+            self.pool.submit(self.run, deepcopy(job))
         except Exception:
             self.guard.release()
             raise
@@ -31,14 +32,14 @@ class RefreshService:
 
     def run(self, job):
         job["status"] = "running"
-        self.db.save_job(job)
         try:
+            self.db.save_job(job)
             for source in job["sources"]:
                 key = source + ":" + ("all" if source == "mldeadlines" else " ".join(job["query"].lower().split()))
                 previous = self.db.get_run(key) or {}
                 success_at = previous.get("last_success_at")
                 age = (datetime.now(timezone.utc) - datetime.fromisoformat(success_at)).total_seconds() if success_at else float("inf")
-                if age < 86400:
+                if age < 86400 and previous.get("status") in {"ok", "cached"}:
                     result = dict(previous, status="cached", attempted_at=now_iso(), error="")
                 else:
                     result = {"source": source, "status": "ok", "count": 0, "attempted_at": now_iso(),
@@ -50,8 +51,10 @@ class RefreshService:
                         result.update(count=len(records), last_success_at=now_iso())
                     except httpx.HTTPStatusError as exc:
                         result.update(status="error", error=f"Provider returned HTTP {exc.response.status_code}. Cached records remain available.")
+                    except httpx.TimeoutException:
+                        result.update(status="error", error="Provider timed out after retries. Try again later or search another source. Existing records are still available.")
                     except httpx.RequestError:
-                        result.update(status="error", error="Connection failed or timed out. Cached records remain available.")
+                        result.update(status="error", error="Could not connect to provider. Check your internet/proxy settings or retry later. Existing records are still available.")
                     except (ValueError, KeyError, TypeError) as exc:
                         result.update(status="error", error=str(exc)[:180])
                 self.db.save_run(key, result)
@@ -63,8 +66,10 @@ class RefreshService:
             job.update(status="failed", error="Refresh interrupted by an internal error. Existing records are safe.")
         finally:
             job["finished_at"] = now_iso()
-            self.db.save_job(job)
-            self.guard.release()
+            try:
+                self.db.save_job(job)
+            finally:
+                self.guard.release()
 
     def sources(self):
         status = self.db.source_status()
