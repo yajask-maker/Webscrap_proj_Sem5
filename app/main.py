@@ -20,6 +20,7 @@ from app.service import RefreshService
 from app.sources import ProviderClient
 
 ROOT = Path(__file__).resolve().parent
+PROJECT_ROOT = ROOT.parent
 
 
 class RefreshBody(BaseModel):
@@ -37,15 +38,16 @@ class RefreshBody(BaseModel):
 
 class BookmarkBody(BaseModel):
     item_id: str = Field(min_length=1, max_length=64)
-    note: str = Field(default="", max_length=1000)
+    note: str | None = Field(default=None, max_length=1000)
 
 
 def create_app(db_path=None, provider=None):
-    load_dotenv()
+    load_dotenv(PROJECT_ROOT / ".env")
 
     @asynccontextmanager
     async def lifespan(api):
-        api.state.db = Database(db_path or os.getenv("EUREKA_DB", "data/eureka.db"))
+        path = Path(db_path or os.getenv("EUREKA_DB", "data/eureka.db"))
+        api.state.db = Database(path if path.is_absolute() else PROJECT_ROOT / path)
         api.state.service = RefreshService(api.state.db, provider or ProviderClient(os.getenv("EUREKA_CONTACT_EMAIL", "")))
         yield
         api.state.service.close()
@@ -58,7 +60,11 @@ def create_app(db_path=None, provider=None):
     async def local_security(request: Request, call_next):
         if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
             origin = request.headers.get("origin")
-            if request.headers.get("sec-fetch-site") == "cross-site" or (origin and urlsplit(origin).netloc != request.headers.get("host")):
+            try:
+                invalid_origin = origin and (urlsplit(origin).netloc != request.headers.get("host") or urlsplit(origin).scheme != request.url.scheme)
+            except ValueError:
+                invalid_origin = True
+            if request.headers.get("sec-fetch-site") == "cross-site" or invalid_origin:
                 return JSONResponse({"detail": "Cross-origin writes are not allowed"}, status_code=403)
         response = await call_next(request)
         response.headers["X-Content-Type-Options"] = "nosniff"
@@ -135,7 +141,8 @@ def create_app(db_path=None, provider=None):
 
     @api.get("/api/v1/export")
     def export(kind: Literal["paper", "conference", "all"] = "all", mode: Literal["live", "demo"] = "live",
-               saved: bool = False, q: str = Query("", max_length=200), source: str = "",
+               saved: bool = False, q: str = Query("", max_length=200),
+               source: Literal["", "crossref", "arxiv", "mldeadlines", "demo"] = "",
                year_from: int | None = Query(None, ge=1900, le=2100), year_to: int | None = Query(None, ge=1900, le=2100),
                location: str = Query("", max_length=120), deadline: Literal["all", "open", "expired", "unknown"] = "all",
                sort: Literal["relevance", "newest", "deadline"] = "relevance"):

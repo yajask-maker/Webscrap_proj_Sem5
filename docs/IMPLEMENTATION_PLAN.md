@@ -59,7 +59,7 @@ Confirmed identifier bridges also preserve bookmarks and observations. Similar t
 - Paper requests retrieve at most 30 results per provider per topic; no whole-corpus harvesting.
 - The scraper fetches robots.txt and a single index page, parses at most 500 cards, and never crawls official links.
 - Successful identical topic/provider queries and the conference index are cached for 24 hours. There is no force-refresh bypass.
-- Three attempts at most for HTTP 429/5xx, bounded retry sleeps, per-request timeouts, and a 4 MB response-size check.
+- Three attempts at most for HTTP 429/5xx, transient network errors and timeouts; bounded retry sleeps, a 30-second read timeout, a 60-second body-read budget checked between chunks, and a 4 MB decoded response limit enforced while streaming.
 - Network failures retain stored data. Details expose timestamps; the dashboard displays each provider's latest run and last success.
 - Schema version is 1; formal upgrade migrations should be added before incompatible schema changes.
 

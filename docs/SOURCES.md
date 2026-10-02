@@ -17,7 +17,7 @@ The client sends a bibliographic query and optional `mailto` contact, parses DOI
 
 ## arXiv
 
-The client parses Atom, preserves source version URLs, normalizes base identifiers, and honors the legacy API's three-second interval and single-connection requirement with a 3.1-second limiter. Descriptive metadata supports discovery; full paper PDFs are not downloaded or hosted. A preprint is not automatically labeled peer reviewed.
+The client retries transient connection/read failures up to three attempts, uses a 30-second read timeout, and reports an unavailable provider while preserving the local collection. Retries cannot guarantee availability. The client parses Atom, preserves source version URLs, normalizes base identifiers, and honors the legacy API's three-second interval and single-connection requirement with a 3.1-second limiter. Descriptive metadata supports discovery; full paper PDFs are not downloaded or hosted. A preprint is not automatically labeled peer reviewed.
 
 - [API manual](https://info.arxiv.org/help/api/user-manual.html)
 - [Terms of use](https://info.arxiv.org/help/api/tou.html)

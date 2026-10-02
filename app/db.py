@@ -54,6 +54,7 @@ class Database:
             if data["arxiv_id"]:
                 keys.append(namespace + "arxiv:" + data["arxiv_id"])
         with self.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
             ids = sorted({row[0] for key in keys for row in db.execute("SELECT item_id FROM aliases WHERE alias=?", (key,))})
             item_id = ids[0] if ids else stable_id(keys[0])
             merged = {}
@@ -118,11 +119,14 @@ class Database:
                 "SELECT data,observed_at FROM observations WHERE item_id=? ORDER BY observed_at DESC LIMIT 20", (item_id,))]
             return data
 
-    def bookmark(self, item_id, note=""):
+    def bookmark(self, item_id, note=None):
         with self.connect() as db:
             if not db.execute("SELECT 1 FROM items WHERE id=?", (item_id,)).fetchone():
                 return False
-            db.execute("INSERT INTO bookmarks VALUES(?,?,?) ON CONFLICT(item_id) DO UPDATE SET note=excluded.note", (item_id, note, now_iso()))
+            if note is None:
+                db.execute("INSERT OR IGNORE INTO bookmarks VALUES(?,?,?)", (item_id, "", now_iso()))
+            else:
+                db.execute("INSERT INTO bookmarks VALUES(?,?,?) ON CONFLICT(item_id) DO UPDATE SET note=excluded.note", (item_id, note, now_iso()))
         return True
 
     def unbookmark(self, item_id):
@@ -143,10 +147,15 @@ class Database:
         with self.connect() as db:
             rows = db.execute("SELECT data FROM source_runs").fetchall()
         latest = {}
+        successes = {}
         for row in rows:
             data = json.loads(row[0])
+            if data.get("last_success_at"):
+                successes[data["source"]] = max(successes.get(data["source"], ""), data["last_success_at"])
             if data["attempted_at"] >= latest.get(data["source"], {}).get("attempted_at", ""):
                 latest[data["source"]] = data
+        for source, success_at in successes.items():
+            latest[source]["last_success_at"] = success_at
         return latest
 
     def save_job(self, job):

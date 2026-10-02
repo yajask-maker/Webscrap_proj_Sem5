@@ -32,6 +32,21 @@ const click=s=>d.querySelector(s).click();
  click('#clear-search');await wait(()=>d.querySelectorAll('.card').length===6);
  d.querySelector('#mode').value='live';d.querySelector('#mode').dispatchEvent(new w.Event('change'));await wait(()=>d.querySelector('.empty'));
  d.querySelector('#query').value='graph';d.querySelector('#search-form').dispatchEvent(new w.Event('submit',{cancelable:true}));await wait(()=>d.querySelectorAll('.card').length===3);
- assert.deepEqual(errors,[]);console.log(JSON.stringify({dom:'jsdom',api:'actual FastAPI via TestClient',demo_cards:6,bookmarks:true,notes:true,deadline_filter:true,search:true,dashboard:true,refresh_polling:true,mode_isolation:true,errors}));
+ // Simulate a delayed mode initialization arriving after a newer selection.
+ const realFetch=w.fetch;
+ let releaseDemo;
+ w.fetch=(path,options)=>path==='/api/v1/demo'?new Promise(resolve=>{releaseDemo=()=>realFetch(path,options).then(resolve)}):realFetch(path,options);
+ const pendingDemo=w.setMode('demo');
+ await w.setMode('live');
+ releaseDemo();await pendingDemo;
+ assert.equal(d.querySelector('#mode').value,'live');
+ assert.equal(d.querySelector('#demo-banner').hidden,true);
+ w.fetch=realFetch;
+ // A blocked browser storage setting must not prevent the application from loading.
+ Object.defineProperty(w,'localStorage',{configurable:true,get(){throw Error('Storage disabled')}});
+ await w.setMode('demo');
+ assert.equal(d.querySelector('#mode').value,'demo');
+ assert.equal(d.querySelector('#feedback').className,'');
+ assert.deepEqual(errors,[]);console.log(JSON.stringify({dom:'jsdom',api:'actual FastAPI via TestClient',demo_cards:6,bookmarks:true,notes:true,deadline_filter:true,search:true,dashboard:true,refresh_polling:true,mode_isolation:true,mode_race:true,blocked_storage:true,errors}));
  dom.window.close();child.stdin.end();
 })().catch(e=>{console.error(e);dom.window.close();child.kill();process.exit(1)});

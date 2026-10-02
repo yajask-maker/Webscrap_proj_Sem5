@@ -1,5 +1,4 @@
 """Bounded acquisition from fixed providers; never fetch user-supplied URLs."""
-import json
 import re
 import threading
 import time
@@ -27,17 +26,20 @@ def plain(value):
 
 
 def crossref_records(payload):
-    message = payload.get("message", {})
+    message = payload.get("message", {}) if isinstance(payload, dict) else None
     if not isinstance(message, dict) or not isinstance(message.get("items"), list):
         raise ValueError("Crossref response schema changed")
     records = []
     for item in message["items"]:
+        if not isinstance(item, dict):
+            continue
         doi = normalize_doi(item.get("DOI"))
         title = plain((item.get("title") or [""])[0])
         if not doi or not title:
             continue
-        parts = (item.get("published", {}).get("date-parts") or [[]])[0]
-        authors = [" ".join(filter(None, [a.get("given"), a.get("family")])) or a.get("name", "") for a in item.get("author", [])]
+        parts = ((item.get("published") or {}).get("date-parts") or [[]])[0] or []
+        authors = [" ".join(filter(None, [a.get("given"), a.get("family")])) or a.get("name", "")
+                   for a in (item.get("author") or []) if isinstance(a, dict)]
         records.append(Record(kind="paper", external_id=doi, source="crossref", title=title,
                               url="https://doi.org/" + doi, source_url="https://doi.org/" + doi, doi=doi,
                               year=parts[0] if parts else None, authors=[a for a in authors if a],
@@ -115,7 +117,7 @@ def conference_records(html):
 class ProviderClient:
     def __init__(self, email="", client=None):
         self.email = email
-        self.client = client or httpx.Client(timeout=httpx.Timeout(12.0, connect=10.0), follow_redirects=False,
+        self.client = client or httpx.Client(timeout=httpx.Timeout(30.0, connect=10.0), follow_redirects=False,
                                              headers={"User-Agent": "EurekaResearch/1.0" + (" (mailto:" + email + ")" if email else "")})
         self.last = {}
         self.lock = threading.Lock()
@@ -129,12 +131,30 @@ class ProviderClient:
             raise ValueError("Provider URL is not allowlisted")
         delay = 3.1 if source == "arxiv" else 1.0
         for attempt in range(3):
-            with self.lock:
-                wait = delay - (time.monotonic() - self.last.get(source, -100))
-                if wait > 0:
-                    time.sleep(wait)
-                self.last[source] = time.monotonic()
-                response = self.client.get(url, params=params)
+            try:
+                with self.lock:
+                    wait = delay - (time.monotonic() - self.last.get(source, -100))
+                    if wait > 0:
+                        time.sleep(wait)
+                    self.last[source] = time.monotonic()
+                    # Bound decoded bytes while reading, not after downloading the whole body.
+                    with self.client.stream("GET", url, params=params) as response:
+                        content = bytearray()
+                        started = time.monotonic()
+                        for chunk in response.iter_bytes():
+                            if len(content) + len(chunk) > 4_000_000:
+                                raise ValueError("Provider response exceeds the size limit")
+                            if time.monotonic() - started > 60:
+                                raise httpx.ReadTimeout("Provider response took too long", request=response.request)
+                            content.extend(chunk)
+                        headers = {k: v for k, v in response.headers.items() if k not in {"content-encoding", "content-length"}}
+                        response = httpx.Response(response.status_code, headers=headers,
+                                                  content=bytes(content), request=response.request)
+            except (httpx.TimeoutException, httpx.NetworkError, httpx.RemoteProtocolError):
+                if attempt == 2:
+                    raise
+                time.sleep(max(delay, 2 ** attempt))
+                continue
             if response.status_code == 429 or response.status_code >= 500:
                 if attempt == 2:
                     response.raise_for_status()
@@ -144,8 +164,6 @@ class ProviderClient:
                 time.sleep(max(2 ** attempt, int(retry_after or 0)))
                 continue
             response.raise_for_status()
-            if len(response.content) > 4_000_000:
-                raise ValueError("Provider response exceeds the size limit")
             return response
         raise ValueError("Provider could not be reached")
 

@@ -54,7 +54,7 @@ def search_records(records, q="", source="", year_from=None, year_to=None,
 def export_csv(records):
     out = io.StringIO(newline="")
     writer = csv.writer(out)
-    fields = ["id", "kind", "title", "authors", "year", "doi", "url", "sources", "location", "deadline_raw", "deadline_timezone", "status", "retrieved_at", "demo"]
+    fields = ["id", "kind", "title", "authors", "year", "doi", "url", "sources", "location", "deadline_raw", "deadline_timezone", "status", "retrieved_at", "demo", "bookmark_note"]
     writer.writerow(fields)
     for item in records:
         cells = []

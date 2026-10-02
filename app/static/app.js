@@ -1,5 +1,5 @@
 const $ = (id) => document.getElementById(id);
-const state = {view: "paper", mode: "live", q: "", page: 1, total: 0, busy: false, request: 0, records: []};
+const state = {view: "paper", mode: "live", q: "", page: 1, total: 0, busy: false, request: 0, modeRequest: 0, records: []};
 const esc = (value) => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const url = (value) => {try {const u = new URL(value); return ["http:", "https:"].includes(u.protocol) ? u.href : "";} catch {return "";}};
 const names = {crossref: "CROSSREF", arxiv: "ARXIV", mldeadlines: "ML DEADLINES", demo: "SYNTHETIC DEMO"};
@@ -64,6 +64,8 @@ async function loadResults() {
   const current = ++state.request;
   const data = await api("/items?" + params());
   if (current !== state.request) return;
+  const lastPage = Math.max(1, Math.ceil(data.total / 12));
+  if (state.page > lastPage) {state.page = lastPage; return loadResults();}
   state.records = data.items; state.total = data.total;
   $("result-count").textContent = data.total;
   $("results").innerHTML = data.items.map(card).join("") || emptyState();
@@ -94,7 +96,16 @@ async function updateCounts() {
   }
 }
 
+function updateSearchButton() {
+  const local = state.mode === "demo" || state.view === "saved";
+  const waiting = state.busy && !local;
+  $("search-button").disabled = waiting;
+  $("search-button").textContent = waiting ? "Collecting…" : local ? "Search collection ↗" : "Search sources ↗";
+  document.querySelectorAll("[data-query]").forEach(button => button.disabled = waiting);
+}
+
 async function setView(view) {
+  ++state.request;
   state.view = view; state.page = 1;
   document.querySelectorAll(".nav").forEach(n => {n.classList.toggle("active", n.dataset.view === view); if(n.dataset.view === view) n.setAttribute("aria-current", "page"); else n.removeAttribute("aria-current");});
   $("crumb").textContent = labels[view];
@@ -110,41 +121,48 @@ async function setView(view) {
   $("year-filter").hidden = view !== "paper";
   $("location-filter").hidden = view !== "conference";
   $("deadline-filter").hidden = view !== "conference";
-  $("search-button").textContent = state.busy ? "Collecting…" : state.mode === "demo" || view === "saved" ? "Search collection ↗" : "Search sources ↗";
+  updateSearchButton();
   if (view === "dashboard") await updateCounts(); else await loadResults();
 }
 
 async function setMode(mode) {
+  const current = ++state.modeRequest;
+  ++state.request;
   if (mode === "demo") await api("/demo", {method:"POST"});
+  if (current !== state.modeRequest) return;
   state.mode = mode; state.page = 1; $("mode").value = mode; $("demo-banner").hidden = mode !== "demo";
-  localStorage.setItem("eureka-mode", mode);
+  try {localStorage.setItem("eureka-mode", mode);} catch {}
   feedback("");
   await setView(state.view);
 }
 
 async function search() {
-  if (state.busy) return;
+  if (state.busy && state.mode === "live" && state.view !== "saved") return;
   state.q = $("query").value.trim(); state.page = 1;
   if (state.mode === "demo" || state.view === "saved") {await loadResults(); return;}
   if (state.q.length < 2) {feedback("Enter a topic with at least two characters, or choose Browse collected.", "error"); return;}
-  state.busy = true; $("search-button").disabled = true; $("search-button").textContent = "Collecting…";
+  state.busy = true; updateSearchButton();
+  const modeRequest = state.modeRequest;
   feedback("Collecting metadata from sources. Existing records remain available while this runs.", "busy");
   try {
     const sources = state.view === "conference" ? ["mldeadlines"] : $("source").value ? [$("source").value] : ["crossref", "arxiv", "mldeadlines"];
     const job = await api("/refresh", {method:"POST", body:JSON.stringify({query:state.q, sources})});
-    let result;
+    let result, checked = -1;
     do {
       await new Promise(resolve => setTimeout(resolve, 1000));
       result = await api("/jobs/" + job.id);
       const complete = result.results?.length || 0;
-      feedback(`Collecting metadata… ${complete} of ${sources.length} sources checked.`, "busy");
+      if (modeRequest === state.modeRequest) feedback(`Collecting metadata… ${complete} of ${sources.length} sources checked.`, "busy");
+      if (complete !== checked && modeRequest === state.modeRequest) {
+        checked = complete;
+        if (state.view !== "dashboard") await loadResults(); else await updateCounts();
+      }
     } while (["queued", "running"].includes(result.status));
     const message = result.results.map(r => `${names[r.source]}: ${r.status === "error" ? r.error : `${r.count} records (${r.status})`}`).join(" · ");
-    feedback(result.error || message || "Refresh finished.", ["failed", "partial"].includes(result.status) ? "error" : "");
+    if (modeRequest === state.modeRequest) feedback(result.error || message || "Refresh finished.", result.status === "failed" ? "error" : result.status === "partial" ? "warning" : "");
     if (state.view !== "dashboard") await loadResults(); else await updateCounts();
   } finally {
-    state.busy = false; $("search-button").disabled = false;
-    $("search-button").textContent = state.mode === "demo" || state.view === "saved" ? "Search collection ↗" : "Search sources ↗";
+    state.busy = false; updateSearchButton();
   }
 }
 
@@ -191,10 +209,10 @@ $("mode").addEventListener("change", act(() => setMode($("mode").value)));
 for (const id of ["sort", "source", "year", "location", "deadline"]) $(id).addEventListener("change", act(() => {state.page = 1; return loadResults();}));
 $("reset-filters").addEventListener("click", act(() => {for(const id of ["source","year","location"]) $(id).value=""; $("deadline").value="all"; $("sort").value="relevance"; state.page=1; return loadResults();}));
 $("clear-search").addEventListener("click", act(() => {state.q=""; $("query").value=""; state.page=1; return loadResults();}));
-$("previous").addEventListener("click", act(() => {state.page--; return loadResults();}));
-$("next").addEventListener("click", act(() => {state.page++; return loadResults();}));
+$("previous").addEventListener("click", act(() => {state.page=Math.max(1,state.page-1); return loadResults();}));
+$("next").addEventListener("click", act(() => {state.page=Math.min(Math.max(1,Math.ceil(state.total/12)),state.page+1); return loadResults();}));
 $("export").addEventListener("click", () => {const p=params(); p.delete("page"); p.delete("page_size"); window.location.href="/api/v1/export?"+p;});
 $("source-details").addEventListener("click", act(() => setView("dashboard")));
 $("close-details").addEventListener("click", () => $("details").close());
 $("details").addEventListener("click", e => {if(e.target===$("details")) {const r=e.target.getBoundingClientRect(); if(e.clientX<r.left || e.clientX>r.right || e.clientY<r.top || e.clientY>r.bottom) e.target.close();}});
-act(async () => {await setMode(localStorage.getItem("eureka-mode") === "demo" ? "demo" : "live");})();
+act(async () => {let mode="live"; try {mode=localStorage.getItem("eureka-mode");} catch {} await setMode(mode === "demo" ? "demo" : "live");})();
